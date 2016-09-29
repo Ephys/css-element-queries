@@ -1,4 +1,3 @@
-module.exports = {
-    ResizeSensor: require('./src/ResizeSensor'),
-    ElementQueries: require('./src/ElementQueries')
-};
+// eslint-disable
+
+module.exports = require('./lib/ElementQueries');

@@ -59,45 +59,37 @@ you should always use this attribute selector (especially if you have several el
 </div>
 ```
 
-### Responsive image
+## Why it's better
 
-```html
-    <div data-responsive-image>
-        <img data-src="http://placehold.it/350x150"/>
-        <img min-width="350" data-src="http://placehold.it/700x300"/>
-        <img min-width="700" data-src="http://placehold.it/1400x600"/>
-    </div>
-```
+- Supports Shadow Roots
+- Does not add properties to elements.
+- Provides more flexibility.
+- Cleaner code
 
-Include the javascript files at the bottom and you're good to go. No custom javascript calls needed.
+## Usage
 
-```html
-<script src="src/ResizeSensor.js"></script>
-<script src="src/ElementQueries.js"></script>
-```
-
-## See it in action:
-
-Here live http://marcj.github.io/css-element-queries/.
-
-![Demo](http://marcj.github.io/css-element-queries/images/css-element-queries-demo.gif)
-
-
-## Module Loader
-
-If you're using a module loader you need to trigger the event listening or initialization yourself:
+You will need a module loader to use this library.
 
 ```javascript
-var EQ = require('node_modules/css-element-queries/ElementQueries');
+import elementQueries from 'css-element-queries'; // TODO rename
 
- //attaches to DOMLoadContent
-EQ.listen();
+const docElementQueries = elementQueries(document);
 
-//or if you want to trigger it yourself.
-// Parse all available CSS and attach ResizeSensor to those elements which have rules attached
-// (make sure this is called after 'load' event, because CSS files are not ready when domReady is fired.
-EQ.init();
+docElementQueries.detach();
 ```
+
+Note: Instances of ElementQueries are shared between identical nodes.
+
+```javascript
+elementQueries(document) === elementQueries(document);
+
+elementQueries(aShadowRoot) === elementQueries(aShadowRoot);
+elementQueries(aShadowRoot) !== elementQueries(document);
+elementQueries(aShadowRoot) !== elementQueries(anotherShadowRoot);
+```
+
+Once you do not need your instance, please call `detach` to free your instance or you will cause memory leaks. 
+Calling detach more than once has an undefined behavior, don't do that.
 
 ## Issues
 
