@@ -1,9 +1,11 @@
-import type { ErrorCallback } from '../types';
+import type { ErrorCallback, QueryMode, QueryProperty } from '../types';
+import { ATTRIBUTE_NAMES } from './ElementQueries';
 
-const ATTRIBUTE_NAMES = ['min-width', 'min-height', 'max-width', 'max-height'];
-
-const SELECTOR_REGEX = /,?[\s\t]*([^,\n]*?)((?:\[[\s\t]*?(?:min|max)-(?:width|height)[\s\t]*?[~$\^]?=[\s\t]*?"[^"]*?"[\s\t]*?])+)([^,\n\s\{]*)/mgi;
+// TODO code style => https://github.com/eslint/eslint/issues/3229
+const SELECTOR_REGEX = /,?[\s\t]*([^,\n]*?)((?:\[[\s\t]*?(?:min|max)-(?:width|height)[\s\t]*?[~$\^]?=[\s\t]*?"[^"]*?"[\s\t]*?])+)([^,\n\s\{]*)/mgi; // eslint-disable-line max-len
 const SELECTOR_ATTRIBUTES_REGEX = /\[[\s\t]*?(min|max)-(width|height)[\s\t]*?[~$\^]?=[\s\t]*?"([^"]*?)"[\s\t]*?]/mgi;
+
+// TODO if a stylesheet is deleted, it should be removed from the cache.
 
 export default class QueryList {
 
@@ -48,7 +50,7 @@ export default class QueryList {
       // ignore InvalidAccessError, styleSheet is not fully loaded yet.
       if (e.name !== 'InvalidAccessError') {
         this.styleSheetCache.add(styleSheet);
-        this.onUnreadableSheet(e);
+        this.onUnreadableSheet(e, styleSheet);
       }
     }
   }
@@ -76,15 +78,45 @@ export default class QueryList {
     }
   }
 
-  queueQuery(selector, mode, property, value) {
+  /**
+   * @param {!string} selector - A CSS selector the element query should watch.
+   * @param {!string} mode - min or max
+   * @param {!string} property - height/width
+   * @param {!string} propertyValue - length
+   */
+  queueQuery(selector, mode: QueryMode, property: QueryProperty, propertyValue) {
     const query = this.allQueries[mode] = this.allQueries[mode] || {};
     const queryMode = query[property] = query[property] || {};
 
-    if (!queryMode[value]) {
-      queryMode[value] = selector;
+    if (!queryMode[propertyValue]) {
+      queryMode[propertyValue] = selector;
     } else {
-      queryMode[value] += `, ${selector}`;
+      queryMode[propertyValue] += `, ${selector}`;
     }
+  }
+
+  [Symbol.iterator]() {
+
+    // It would be nice to just use a generator here or implement a real lazy iterator
+    // but the code is too complex and I don't want to add regenreator as a dependency to simplify it.
+    const queries = [];
+
+    for (const mode of Object.keys(this.allQueries)) {
+
+      const properties = this.allQueries[mode];
+      for (const property of Object.keys(properties)) {
+
+        const values = properties[property];
+        for (const value of Object.keys(values)) {
+          const selector = values[value];
+          const query = { mode, property, value, selector };
+
+          queries.push(query);
+        }
+      }
+    }
+
+    return queries[Symbol.iterator];
   }
 }
 
@@ -93,9 +125,9 @@ function hasElementQuery(selector: string) {
     if (selector.indexOf(attributeName) !== -1) {
       return true;
     }
-
-    return false;
   }
+
+  return false;
 }
 
 function *matchAll(regex: RegExp, str: string) {
