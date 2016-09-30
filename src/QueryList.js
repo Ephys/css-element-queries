@@ -1,4 +1,4 @@
-import type { ErrorCallback, QueryMode, QueryProperty } from '../types';
+import type { ErrorCallback, ElemFeaturePrefix, ElemFeatureName } from '../types';
 import { ATTRIBUTE_NAMES } from './ElementQueries';
 
 // TODO code style => https://github.com/eslint/eslint/issues/3229
@@ -9,11 +9,13 @@ const SELECTOR_ATTRIBUTES_REGEX = /\[[\s\t]*?(min|max)-(width|height)[\s\t]*?[~$
 
 export default class QueryList {
 
+  /** @private */
   onUnreadableSheet: ErrorCallback;
 
   /** @private */
   styleSheetCache: WeakSet<StyleSheet> = new WeakSet();
 
+  /** @private */
   allQueries: string[] = [];
 
   constructor(onUnreadableSheet: ErrorCallback) {
@@ -65,33 +67,33 @@ export default class QueryList {
     this.extractQuery(selector);
   }
 
-  extractQuery(selector: string) {
-    selector = selector.replace(/'/g, '"');
+  extractQuery(rawSelector: string) {
+    rawSelector = rawSelector.replace(/'/g, '"');
 
-    for (const match of matchAll(SELECTOR_REGEX, selector)) {
-      const smatch = match[1] + match[3];
-      const attrs = match[2];
+    for (const match of matchAll(SELECTOR_REGEX, rawSelector)) {
+      const featureSelector = match[1] + match[3];
+      const rawElementFeature = match[2];
 
-      for (const attrMatch of matchAll(SELECTOR_ATTRIBUTES_REGEX, attrs)) {
-        this.queueQuery(smatch, attrMatch[1], attrMatch[2], attrMatch[3]);
+      for (const attrMatch of matchAll(SELECTOR_ATTRIBUTES_REGEX, rawElementFeature)) {
+        this.queueQuery(featureSelector, attrMatch[1], attrMatch[2], attrMatch[3]);
       }
     }
   }
 
   /**
    * @param {!string} selector - A CSS selector the element query should watch.
-   * @param {!string} mode - min or max
-   * @param {!string} property - height/width
-   * @param {!string} propertyValue - length
+   * @param {!string} featurePrefix - A prefix for the element feature.
+   * @param {!string} elemFeature - The name of the element feature.
+   * @param {!string} featureValue - element feature value.
    */
-  queueQuery(selector, mode: QueryMode, property: QueryProperty, propertyValue) {
-    const query = this.allQueries[mode] = this.allQueries[mode] || {};
-    const queryMode = query[property] = query[property] || {};
+  queueQuery(selector: string, featurePrefix: ElemFeaturePrefix, elemFeature: ElemFeatureName, featureValue) {
+    const query = this.allQueries[featurePrefix] = this.allQueries[featurePrefix] || {};
+    const queryMode = query[elemFeature] = query[elemFeature] || {};
 
-    if (!queryMode[propertyValue]) {
-      queryMode[propertyValue] = selector;
+    if (!queryMode[featureValue]) {
+      queryMode[featureValue] = selector;
     } else {
-      queryMode[propertyValue] += `, ${selector}`;
+      queryMode[featureValue] += `, ${selector}`;
     }
   }
 
@@ -101,15 +103,22 @@ export default class QueryList {
     // but the code is too complex and I don't want to add regenreator as a dependency to simplify it.
     const queries = [];
 
-    for (const mode of Object.keys(this.allQueries)) {
+    for (const featurePrefix of Object.keys(this.allQueries)) {
 
-      const properties = this.allQueries[mode];
-      for (const property of Object.keys(properties)) {
+      const featureNames = this.allQueries[featurePrefix];
+      for (const featureName of Object.keys(featureNames)) {
 
-        const values = properties[property];
-        for (const value of Object.keys(values)) {
-          const selector = values[value];
-          const query = { mode, property, value, selector };
+        const featureValues = featureNames[featureName];
+        for (const featureValue of Object.keys(featureValues)) {
+          const selector = featureValues[featureValue];
+          const query = {
+            selector,
+            feature: {
+              name: featureName,
+              prefix: featurePrefix,
+              value: featureValue,
+            },
+          };
 
           queries.push(query);
         }

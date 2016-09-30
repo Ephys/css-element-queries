@@ -9,7 +9,7 @@
  * https://github.com/marcj/css-element-queries/blob/master/LICENSE.
  */
 
-import type { DocumentLike, ErrorCallback } from '../types';
+import type { DocumentLike, ErrorCallback, ElemFeature } from '../types';
 import QueryList from './QueryList';
 import ElementResizeHandler from './ElementResizeHandler';
 import { ensureDocumentLike, getRootNode } from './DomUtil';
@@ -99,11 +99,11 @@ export class ElementQueries {
       throw new TypeError('Node argument is not a child of the document handled by this ElementQuery');
     }
 
-    for (const { selector, ...setup } of this.queryList) {
+    for (const { selector, elemQuery } of this.queryList) {
       const nodes = tree.querySelectorAll(selector);
 
       for (const node of nodes) {
-        setupNode(node, setup);
+        setupNode(node, elemQuery);
       }
     }
   }
@@ -121,10 +121,10 @@ export default function elementQueries(document: DocumentLike) {
   return instances.get(document);
 }
 
-function setupNode(element, options) {
+function setupNode(element, elemQuery: ElemFeature) {
   if (!element[resizeListener]) {
     element[resizeListener] = new ElementResizeHandler(element);
   }
 
-  element[resizeListener].addOptions(options);
+  element[resizeListener].addQueryFeature(elemQuery);
 }

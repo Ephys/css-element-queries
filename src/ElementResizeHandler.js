@@ -1,12 +1,16 @@
 import makeResizeDetector from 'element-resize-detector';
+import type { ElemFeature } from '../types';
 import { ATTRIBUTE_NAMES } from './ElementQueries';
 import { convertToPx } from './CssUtil';
 
 const resizeDetector = makeResizeDetector();
 
 export default class ElementResizeHandler {
+  /** @private */
   element: Node;
-  options: Object = {};
+
+  /** @private */
+  features: { [key: string]: ElemFeature } = {};
 
   constructor(element) {
     this.element = element;
@@ -14,9 +18,9 @@ export default class ElementResizeHandler {
     resizeDetector.listenTo(this.element, () => this.refresh());
   }
 
-  addOptions(options) {
-    const idx = `${options.mode},${options.property},${options.value}`;
-    this.options[idx] = options;
+  addQueryFeature(feature: ElemFeature) {
+    const idx = `${feature.prefix},${feature.name},${feature.value}`;
+    this.features[idx] = feature;
   }
 
   refresh() {
@@ -28,20 +32,20 @@ export default class ElementResizeHandler {
 
     const attrValues = {};
 
-    for (const optionKey of Object.keys(this.options)) {
-      const option = this.options[optionKey];
-      const value = convertToPx(this.element, option.value);
+    for (const featureKey of Object.keys(this.features)) {
+      const elementFeature: ElemFeature = this.features[featureKey];
+      const targetSize = convertToPx(this.element, elementFeature.value);
 
-      actualValue = option.property == 'width' ? width : height;
-      attrName = option.mode + '-' + option.property;
+      const currentValue = elementFeature.name === 'width' ? width : height;
+      attrName = elementFeature.mode + '-' + elementFeature.property;
       attrValue = '';
 
-      if (option.mode == 'min' && actualValue >= value) {
-        attrValue += option.value;
+      if (elementFeature.mode == 'min' && actualValue >= targetSize) {
+        attrValue += elementFeature.value;
       }
 
-      if (option.mode == 'max' && actualValue <= value) {
-        attrValue += option.value;
+      if (elementFeature.mode == 'max' && actualValue <= targetSize) {
+        attrValue += elementFeature.value;
       }
 
       if (!attrValues[attrName]) attrValues[attrName] = '';

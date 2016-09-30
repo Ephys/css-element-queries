@@ -97,6 +97,10 @@ Calling detach more than once has an undefined behavior, don't do that.
  - Adds additional hidden elements into selected target element and forces target element to be relative or absolute.
  - Local stylesheets do not work (using `file://` protocol).
 
+## Contributing
+
+See CONTRIBUTING.md
+
 ## License
 
 MIT license. Copyright [Marc J. Schmidt](https://twitter.com/MarcJSchmidt).
