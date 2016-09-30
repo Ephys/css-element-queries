@@ -112,13 +112,14 @@ export class ElementQueries {
 export default function elementQueries(document: DocumentLike) {
   ensureDocumentLike(document);
 
-  const instances = ElementQueries.instance;
+  const instances = ElementQueries.instances;
 
   if (!instances.has(document)) {
     instances.set(document, new ElementQueries(document));
   }
 
-  return instances.get(document);
+  const instance = instances.get(document);
+  instance.update();
 }
 
 function setupNode(element, elemQuery: ElemFeature) {
