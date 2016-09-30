@@ -20,7 +20,7 @@ It's a proof-of-concept event-based CSS element dimension query with valid CSS s
  
 More demos and information: http://marcj.github.io/css-element-queries/
 
-## Drawbacks
+## Caveats
 
 - Your CSS needs to be readable, any CSS file that cannot be read through JavaScript because of CORS will be ignored
 by the library.

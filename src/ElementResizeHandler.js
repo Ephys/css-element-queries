@@ -3,7 +3,11 @@ import type { ElemFeature } from '../types';
 import { ATTRIBUTE_NAMES } from './ElementQueries';
 import { convertToPx } from './CssUtil';
 
-const resizeDetector = makeResizeDetector();
+// TODO replace with native impl the day it comes into life.
+// https://github.com/wnr/element-resize-detector
+const resizeDetector = makeResizeDetector({
+  strategy: 'scroll',
+});
 
 export default class ElementResizeHandler {
   /** @private */
@@ -12,15 +16,22 @@ export default class ElementResizeHandler {
   /** @private */
   features: { [key: string]: ElemFeature } = {};
 
+  onChange: (elem: Element) => void = null;
+  changed = false;
+
   constructor(element: Element) {
     this.element = element;
 
-    resizeDetector.listenTo(this.element, () => this.refresh());
+    resizeDetector.listenTo(this.element, () => {
+      this.refresh();
+    });
   }
 
   addQueryFeature(feature: ElemFeature) {
     const idx = `${feature.prefix},${feature.name},${feature.value}`;
     this.features[idx] = feature;
+
+    this.refresh();
   }
 
   refresh() {
@@ -69,11 +80,31 @@ export default class ElementResizeHandler {
       }
     }
 
+    let changed = this.changed;
     for (const attribute of ATTRIBUTE_NAMES) {
       if (attributeValues[attribute]) {
-        this.element.setAttribute(attribute, attributeValues[attribute].join(','));
+        const newValue = attributeValues[attribute].join(',');
+
+        if (!changed && this.element.getAttribute(attribute) !== newValue) {
+          changed = true;
+        }
+
+        this.element.setAttribute(attribute, newValue);
       } else {
+        if (!changed && this.element.hasAttribute(attribute)) {
+          changed = true;
+        }
+
         this.element.removeAttribute(attribute);
+      }
+    }
+
+    if (changed) {
+      if (this.onChange) {
+        this.changed = false;
+        this.onChange(this.element);
+      } else {
+        this.changed = true;
       }
     }
   }

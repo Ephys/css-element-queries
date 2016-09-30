@@ -1,11 +1,20 @@
 import type { ErrorCallback, ElemFeaturePrefix, ElemFeatureName } from '../types';
 import { ATTRIBUTE_NAMES } from './ElementQueries';
+import { domStyleSheets, isDeadStyleSheet } from './domStyleSheets';
 
 // TODO code style => https://github.com/eslint/eslint/issues/3229
 const SELECTOR_REGEX = /,?[\s\t]*([^,\n]*?)((?:\[[\s\t]*?(?:min|max)-(?:width|height)[\s\t]*?[~$\^]?=[\s\t]*?"[^"]*?"[\s\t]*?])+)([^,\n\s\{]*)/mgi; // eslint-disable-line max-len
 const SELECTOR_ATTRIBUTES_REGEX = /\[[\s\t]*?(min|max)-(width|height)[\s\t]*?[~$\^]?=[\s\t]*?"([^"]*?)"[\s\t]*?]/mgi;
 
 // TODO if a stylesheet is deleted, it should be removed from the cache.
+
+type Query = {
+  selectors: {
+    selector: string,
+    styleSheet: StyleSheet,
+  }[],
+  feature: ElemFeature,
+};
 
 export default class QueryList {
 
@@ -16,17 +25,22 @@ export default class QueryList {
   styleSheetCache: WeakSet<StyleSheet> = new WeakSet();
 
   /** @private */
-  allQueries: string[] = [];
+  allQueries: Map<string, Query> = new Map();
 
   constructor(onUnreadableSheet: ErrorCallback) {
     this.onUnreadableSheet = onUnreadableSheet;
   }
 
-  readStyleSheet(styleSheet: CSSStyleSheet | CSSGroupingRule) {
+  addStyleSheet(styleSheet: CSSStyleSheet) {
     if (this.styleSheetCache.has(styleSheet)) {
       return;
     }
 
+    this.readStyleSheet(styleSheet);
+  }
+
+  /** @private */
+  readStyleSheet(styleSheet: CSSStyleSheet | CSSGroupingRule) {
     try {
       const rules: CSSRuleList = styleSheet.cssRules || styleSheet.rules;
 
@@ -35,25 +49,35 @@ export default class QueryList {
 
         switch (rule.type) {
           case CSSRule.STYLE_RULE:
-            return this.readSelector(rule);
+            this.readSelector(rule);
+            break;
 
           case CSSRule.IMPORT_RULE:
-            return this.readStyleSheets(rule.styleSheet);
+            this.readStyleSheet(rule.styleSheet);
+            break;
 
           case CSSRule.MEDIA_RULE:
-            return this.readStyleSheets(rule);
+            this.readStyleSheet(rule);
+            break;
 
           default:
         }
       }
 
-      this.styleSheetCache.add(styleSheet);
+      this.markAsRead(styleSheet);
     } catch (e) {
       // ignore InvalidAccessError, styleSheet is not fully loaded yet.
       if (e.name !== 'InvalidAccessError') {
-        this.styleSheetCache.add(styleSheet);
+        this.markAsRead(styleSheet);
         this.onUnreadableSheet(e, styleSheet);
       }
+    }
+  }
+
+  markAsRead(styleSheet: CSSStyleSheet) {
+    this.styleSheetCache.add(styleSheet);
+    if (styleSheet.ownerNode) {
+      domStyleSheets.add(styleSheet);
     }
   }
 
@@ -85,47 +109,61 @@ export default class QueryList {
    * @param {!string} featurePrefix - A prefix for the element feature.
    * @param {!string} elemFeature - The name of the element feature.
    * @param {!string} featureValue - element feature value.
+   * @param {!CSSStyleSheet} styleSheet - The StyleSheet which added this rule.
    */
-  queueQuery(selector: string, featurePrefix: ElemFeaturePrefix, elemFeature: ElemFeatureName, featureValue) {
-    const query = this.allQueries[featurePrefix] = this.allQueries[featurePrefix] || {};
-    const queryMode = query[elemFeature] = query[elemFeature] || {};
+  queueQuery(selector: string, featurePrefix: ElemFeaturePrefix,
+             elemFeature: ElemFeatureName, featureValue, styleSheet: CSSStyleSheet) {
 
-    if (!queryMode[featureValue]) {
-      queryMode[featureValue] = selector;
+    const queryIdentifier = `${featurePrefix}-${elemFeature}-${featureValue}`;
+
+    let query;
+    if (this.allQueries.has(queryIdentifier)) {
+      query = this.allQueries.get(queryIdentifier);
     } else {
-      queryMode[featureValue] += `, ${selector}`;
+      query = {
+        selectors: [],
+        feature: {
+          name: elemFeature,
+          prefix: featurePrefix,
+          value: featureValue,
+        },
+      };
     }
+
+    query.selectors.push({ styleSheet, selector });
   }
 
   [Symbol.iterator]() {
+    const allQueries = this.allQueries;
 
-    // It would be nice to just use a generator here or implement a real lazy iterator
-    // but the code is too complex and I don't want to add regenreator as a dependency to simplify it.
-    const queries = [];
+    const iterator = allQueries.values();
+    const toRemove = [];
 
-    for (const featurePrefix of Object.keys(this.allQueries)) {
+    return {
+      next() {
+        do {
+          const newValue = iterator.next();
+          if (newValue.done) {
+            for (const item of toRemove) {
+              allQueries.delete(item);
+            }
 
-      const featureNames = this.allQueries[featurePrefix];
-      for (const featureName of Object.keys(featureNames)) {
+            return newValue;
+          }
 
-        const featureValues = featureNames[featureName];
-        for (const featureValue of Object.keys(featureValues)) {
-          const selector = featureValues[featureValue];
-          const query = {
-            selector,
-            feature: {
-              name: featureName,
-              prefix: featurePrefix,
-              value: featureValue,
-            },
-          };
+          const val: Query = newValue.value;
+          if (val.selectors.find(item => isDeadStyleSheet(item.styleSheet)) != null) {
+            val.selectors = val.selectors.filter(item => isDeadStyleSheet(item.styleSheet));
+          }
 
-          queries.push(query);
-        }
-      }
-    }
+          if (val.selectors.length !== 0) {
+            return newValue;
+          }
 
-    return queries[Symbol.iterator];
+          toRemove.push(val); // no more selectors, delete this!
+        } while (true);
+      },
+    };
   }
 }
 

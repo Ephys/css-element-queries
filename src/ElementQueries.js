@@ -17,7 +17,8 @@ import { ensureDocumentLike, getRootNode } from './DomUtil';
 export const ATTRIBUTE_NAMES: string[] = ['min-width', 'min-height', 'max-width', 'max-height'];
 Object.freeze(ATTRIBUTE_NAMES);
 
-const resizeListener = Symbol('elemQueriesResizeListener');
+// This is exported for testing purposes only!
+export const resizeListener = Symbol('elemQueriesResizeListener');
 
 /*
  * TODO
@@ -79,7 +80,7 @@ export class ElementQueries {
    */
   readStyleSheets() {
     for (const styleSheet: CSSStyleSheet of this.watchedDoc.styleSheets) {
-      this.queryList.readStyleSheet(styleSheet);
+      this.queryList.addStyleSheet(styleSheet);
     }
   }
 
@@ -87,7 +88,7 @@ export class ElementQueries {
    * Read a specific style sheet.
    */
   readStyleSheet(styleSheet) {
-    this.queryList.readStyleSheet(styleSheet);
+    this.queryList.addStyleSheet(styleSheet);
   }
 
   /**
@@ -99,17 +100,19 @@ export class ElementQueries {
       throw new TypeError('Node argument is not a child of the document handled by this ElementQuery');
     }
 
-    for (const { selector, elemQuery } of this.queryList) {
+    // TODO selector => selectors, join and give it as-is to handler
+    // so it can delete dead styleSheets.
+    for (const { selector, feature } of this.queryList) {
       const nodes = tree.querySelectorAll(selector);
 
       for (const node of nodes) {
-        setupNode(node, elemQuery);
+        setupNode(node, feature);
       }
     }
   }
 }
 
-export default function elementQueries(document: DocumentLike) {
+export default function elementQueries(document: DocumentLike = window.document): ElementQueries {
   ensureDocumentLike(document);
 
   const instances = ElementQueries.instances;
@@ -120,6 +123,8 @@ export default function elementQueries(document: DocumentLike) {
 
   const instance = instances.get(document);
   instance.update();
+
+  return instance;
 }
 
 function setupNode(element, elemQuery: ElemFeature) {

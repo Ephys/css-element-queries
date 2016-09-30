@@ -1,2 +1,6 @@
 node_modules/
 .idea
+browserstack-keys.json
+lib
+*.log
+coverage
