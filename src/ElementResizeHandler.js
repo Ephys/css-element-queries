@@ -7,12 +7,12 @@ const resizeDetector = makeResizeDetector();
 
 export default class ElementResizeHandler {
   /** @private */
-  element: Node;
+  element: Element;
 
   /** @private */
   features: { [key: string]: ElemFeature } = {};
 
-  constructor(element) {
+  constructor(element: Element) {
     this.element = element;
 
     resizeDetector.listenTo(this.element, () => this.refresh());
@@ -30,41 +30,50 @@ export default class ElementResizeHandler {
     const width = element.offsetWidth;
     const height = element.offsetHeight;
 
-    const attrValues = {};
+    const attributeValues: { [key: string] : string[] } = {};
 
     for (const featureKey of Object.keys(this.features)) {
       const elementFeature: ElemFeature = this.features[featureKey];
+
       const targetSize = convertToPx(this.element, elementFeature.value);
+      const currentSize = elementFeature.name === 'width' ? width : height;
 
-      const currentValue = elementFeature.name === 'width' ? width : height;
-      attrName = elementFeature.mode + '-' + elementFeature.property;
-      attrValue = '';
+      const attributeName = `${elementFeature.prefix}-${elementFeature.name}`;
 
-      if (elementFeature.mode == 'min' && actualValue >= targetSize) {
-        attrValue += elementFeature.value;
+      let attributeValue;
+      switch (elementFeature.prefix) {
+        case 'min':
+          if (currentSize >= targetSize) {
+            attributeValue = elementFeature.value;
+          }
+
+          break;
+
+        case 'max':
+          if (currentSize <= targetSize) {
+            attributeValue = elementFeature.value;
+          }
+
+          break;
+
+        default:
+          throw new Error(`Invalid Element Query Prefix ${elementFeature.prefix}`);
       }
 
-      if (elementFeature.mode == 'max' && actualValue <= targetSize) {
-        attrValue += elementFeature.value;
-      }
-
-      if (!attrValues[attrName]) attrValues[attrName] = '';
-      if (attrValue && -1 === (' ' + attrValues[attrName] + ' ').indexOf(' ' + attrValue + ' ')) {
-        attrValues[attrName] += ' ' + attrValue;
+      if (attributeValue) {
+        if (!attributeValues[attributeName]) {
+          attributeValues[attributeName] = [attributeValue];
+        } else if (attributeValues[attributeName].indexOf(attributeValue) === -1) {
+          attributeValues[attributeName].push(attributeValue);
+        }
       }
     }
 
     for (const attribute of ATTRIBUTE_NAMES) {
-
-    }
-
-    for (var k in attributes) {
-      if (!attributes.hasOwnProperty(k)) continue;
-
-      if (attrValues[attributes[k]]) {
-        this.element.setAttribute(attributes[k], attrValues[attributes[k]].substr(1));
+      if (attributeValues[attribute]) {
+        this.element.setAttribute(attribute, attributeValues[attribute].join(','));
       } else {
-        this.element.removeAttribute(attributes[k]);
+        this.element.removeAttribute(attribute);
       }
     }
   }
