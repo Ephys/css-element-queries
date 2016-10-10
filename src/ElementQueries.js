@@ -102,11 +102,13 @@ export class ElementQueries {
 
     // TODO selector => selectors, join and give it as-is to handler
     // so it can delete dead styleSheets.
-    for (const { selector, feature } of this.queryList) {
-      const nodes = tree.querySelectorAll(selector);
+    for (const { selectors, feature } of this.queryList) {
+      for (const { selector, styleSheet } of selectors) {
+        const nodes = tree.querySelectorAll(selector);
 
-      for (const node of nodes) {
-        setupNode(node, feature);
+        for (const node of nodes) {
+          setupNode(node, feature, styleSheet);
+        }
       }
     }
   }
@@ -127,10 +129,10 @@ export default function elementQueries(document: DocumentLike = window.document)
   return instance;
 }
 
-function setupNode(element, elemQuery: ElemFeature) {
+function setupNode(element, elemQuery: ElemFeature, styleSheet: CSSStyleSheet) {
   if (!element[resizeListener]) {
     element[resizeListener] = new ElementResizeHandler(element);
   }
 
-  element[resizeListener].addQueryFeature(elemQuery);
+  element[resizeListener].addQueryFeature(elemQuery, styleSheet);
 }

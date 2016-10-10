@@ -1,5 +1,4 @@
 import type { ErrorCallback, ElemFeaturePrefix, ElemFeatureName } from '../types';
-import { ATTRIBUTE_NAMES } from './ElementQueries';
 import { domStyleSheets, isDeadStyleSheet } from './domStyleSheets';
 
 // TODO code style => https://github.com/eslint/eslint/issues/3229
@@ -49,7 +48,7 @@ export default class QueryList {
 
         switch (rule.type) {
           case CSSRule.STYLE_RULE:
-            this.readSelector(rule);
+            this.readCssRule(rule);
             break;
 
           case CSSRule.IMPORT_RULE:
@@ -81,25 +80,16 @@ export default class QueryList {
     }
   }
 
-  readSelector(rule: CSSStyleRule) {
-    const selector = rule.selectorText;
-
-    if (!hasElementQuery(selector)) {
-      return;
-    }
-
-    this.extractQuery(selector);
-  }
-
-  extractQuery(rawSelector: string) {
-    rawSelector = rawSelector.replace(/'/g, '"');
+  readCssRule(rule: CSSStyleRule) {
+    const rawSelector = rule.selectorText.replace(/'/g, '"');
+    const styleSheet: CSSStyleSheet = rule.parentStyleSheet;
 
     for (const match of matchAll(SELECTOR_REGEX, rawSelector)) {
       const featureSelector = match[1] + match[3];
       const rawElementFeature = match[2];
 
       for (const attrMatch of matchAll(SELECTOR_ATTRIBUTES_REGEX, rawElementFeature)) {
-        this.queueQuery(featureSelector, attrMatch[1], attrMatch[2], attrMatch[3]);
+        this.queueQuery(featureSelector, attrMatch[1], attrMatch[2], attrMatch[3], styleSheet);
       }
     }
   }
@@ -113,6 +103,10 @@ export default class QueryList {
    */
   queueQuery(selector: string, featurePrefix: ElemFeaturePrefix,
              elemFeature: ElemFeatureName, featureValue, styleSheet: CSSStyleSheet) {
+
+    if (!(styleSheet instanceof CSSStyleSheet)) {
+      throw new TypeError('styleSheet is not a CSSStyleSheet');
+    }
 
     const queryIdentifier = `${featurePrefix}-${elemFeature}-${featureValue}`;
 
@@ -128,53 +122,34 @@ export default class QueryList {
           value: featureValue,
         },
       };
+
+      this.allQueries.set(queryIdentifier, query);
     }
 
     query.selectors.push({ styleSheet, selector });
   }
 
-  [Symbol.iterator]() {
-    const allQueries = this.allQueries;
-
-    const iterator = allQueries.values();
+  *[Symbol.iterator]() {
     const toRemove = [];
 
-    return {
-      next() {
-        do {
-          const newValue = iterator.next();
-          if (newValue.done) {
-            for (const item of toRemove) {
-              allQueries.delete(item);
-            }
+    for (const query of this.allQueries.values()) {
+      if (query.selectors.find(item => isDeadStyleSheet(item.styleSheet)) != null) {
+        query.selectors = query.selectors.filter(item => !isDeadStyleSheet(item.styleSheet));
+      }
 
-            return newValue;
-          }
+      if (query.selectors.length === 0) {
+        // no more selectors, delete this!
+        toRemove.push(query);
+        continue;
+      }
 
-          const val: Query = newValue.value;
-          if (val.selectors.find(item => isDeadStyleSheet(item.styleSheet)) != null) {
-            val.selectors = val.selectors.filter(item => isDeadStyleSheet(item.styleSheet));
-          }
+      yield query;
+    }
 
-          if (val.selectors.length !== 0) {
-            return newValue;
-          }
-
-          toRemove.push(val); // no more selectors, delete this!
-        } while (true);
-      },
-    };
-  }
-}
-
-function hasElementQuery(selector: string) {
-  for (const attributeName of ATTRIBUTE_NAMES) {
-    if (selector.indexOf(attributeName) !== -1) {
-      return true;
+    for (const item of toRemove) {
+      this.allQueries.delete(item);
     }
   }
-
-  return false;
 }
 
 function *matchAll(regex: RegExp, str: string) {
