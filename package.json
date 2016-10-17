@@ -1,5 +1,5 @@
 {
-  "name": "css-element-queries",
+  "name": "foobar_css-element-queries",
   "version": "1.0.0",
   "description": "CSS-Element-Queries Polyfill. proof-of-concept for high-speed element dimension/media queries in valid css.",
   "main": "index.js",
