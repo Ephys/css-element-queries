@@ -100,8 +100,6 @@ export class ElementQueries {
       throw new TypeError('Node argument is not a child of the document handled by this ElementQuery');
     }
 
-    // TODO selector => selectors, join and give it as-is to handler
-    // so it can delete dead styleSheets.
     for (const { selectors, feature } of this.queryList) {
       for (const { selector, styleSheet } of selectors) {
         const nodes = tree.querySelectorAll(selector);
